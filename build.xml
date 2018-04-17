@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="stoke" default="compile">
+	<target name="init">
+    <property name="package.dir" value="jraplmeter"/>
+    <property name="src.dir" value="src" />
+    <property name="build.dir" value="build" />
+    <property name="build.classes.dir" value="${build.dir}/classes" />
+	  <property name="stoke.libs" value="" />
+    <property name="runtime.jar" location="jraplmeter.jar"/>
+  </target>
+
+	<target name="clean" depends="init" description="Remove build files created this scripts">
+		<delete dir="${build.dir}" />
+  </target>
+
+  <path id="project.class.path">
+    <pathelement path="${java.class.path}/"/>
+		<pathelement path="vendor/jrapl-port/classes"/>
+  </path>
+
+	<target name="compile" depends="init" description="Compile source">
+		<mkdir dir="${build.classes.dir}" />
+
+    <javac 
+      source="1.7" target="1.7" 
+      srcdir="${src.dir}" 
+      destdir="${build.classes.dir}" 
+      debug="on" 
+      classpathref="project.class.path">
+    </javac>
+	</target>
+
+  <target name="jar" depends="compile">
+		<jar jarfile="${runtime.jar}">
+      <fileset dir="build/classes" includes="com/stoke/**/*.class" />
+			<fileset dir="vendor/jrapl-port/classes" includes="jrapl/**/*.class" />
+			<fileset dir="vendor/jrapl-port/classes" includes="jrapl/**/*.so" />
+			<zipgroupfileset dir="vendor/lib" includes="*.jar" />
+		</jar> 
+  </target>
+
+
+</project> 

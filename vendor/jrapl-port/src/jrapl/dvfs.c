@@ -55,10 +55,6 @@ int check_write_gov(int cores, char govFile[cores][60], const char *target) {
 
 }
 
-size_t
-get_pos_intnum(int freq) { return 0; }
-
-int
 write_freq_all_cores(int cores, char filename[cores][60], const char *cur_freq, const char *scal_freq, int freq) {
 	int i;
 	FILE *f[cores];
@@ -113,5 +109,4 @@ write_freq_all_cores(int cores, char filename[cores][60], const char *cur_freq, 
 		printf("scal_cpufreq: %d\n", scal_cpufreq[i]);
 	}
 
-	return 0;
 }

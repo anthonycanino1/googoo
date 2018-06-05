@@ -17,18 +17,27 @@
  * DEALINGS IN THE SOFTWARE.
  * ***********************************************************************************************/
 
-package stoke.meter;
+package jraplmeter;
 
-import stoke.meter.MeterReading.MeterVector;
+import jraplmeter.MeterReading.MeterVector;
 
 import jrapl.EnergyCheckUtils;
 
 import com.google.common.base.Stopwatch;
 
-public class UnixMeter implements RawMeter {
+public class UnixMeter {
   public static final int DRAM = 0;
   public static final int CPU = 1;
   public static final int PACKAGE = 2;
+
+  private static UnixMeter _meter;
+  static {
+    _meter = new UnixMeter();
+  }
+
+  public static UnixMeter sharedMeter() {
+    return _meter;
+  }
 
   private class UnixReading implements MeterReading {
     public double[] _jrapl;
@@ -54,14 +63,14 @@ public class UnixMeter implements RawMeter {
     EnergyCheckUtils.ProfileDealloc();
   }
 
-  public MeterReading readMeter() {
+  public MeterReading read() {
     double[] readings = EnergyCheckUtils.getEnergyStats();
     return new UnixReading(readings, EnergyCheckUtils.socketNum);
   }
 
-  public MeterReading diffMeter(MeterReading start) {
+  public MeterReading diff(MeterReading start) {
     UnixReading r1 = (UnixReading) start;
-    UnixReading r2 = (UnixReading) readMeter();
+    UnixReading r2 = (UnixReading) read();
     double[] readings = new double[r1._jrapl.length];
     for (int i = 0; i < r1._jrapl.length; i++) {
       readings[i] = r2._jrapl[i] - r1._jrapl[i];
@@ -69,6 +78,13 @@ public class UnixMeter implements RawMeter {
         readings[i] += EnergyCheckUtils.wraparoundValue;
       }
     } 
+
+    LogUtil.writeLogger("[SKIP] Raw Diff: ");
+    for (int i = 0; i < readings.length; i++) {
+      LogUtil.writeLogger(String.format("%.2f ", readings[i]));
+    }
+    LogUtil.writeLogger("\n");
+
     return new UnixReading(readings, r1._sockets, r2._time - r1._time);
   }
 
@@ -99,6 +115,9 @@ public class UnixMeter implements RawMeter {
 
     vector.put("total", packageTotal + dramTotal);
 
+    vector.put("seconds", (double) ur._time / 1000000000.0);
+
+
     return vector;
   }
 
@@ -113,6 +132,7 @@ public class UnixMeter implements RawMeter {
     vector.put("cpu", vector.get("cpu") / seconds);
     vector.put("dram", vector.get("dram") / seconds);
     vector.put("uncore", vector.get("uncore") / seconds);
+    vector.put("seconds", seconds);
 
     return vector;
   }

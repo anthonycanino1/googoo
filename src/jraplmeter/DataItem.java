@@ -21,30 +21,27 @@ package jraplmeter;
 
 import java.util.*;
 
-public interface MeterReading {
+import jraplmeter.Monitor.MonitoredField;
 
-  public class MeterVector {
-    public Map<String,Double> values = new HashMap<>();
+public class DataItem { 
+  public String _className;
+  public Object _item;
+  public MonitoredField[] _fields;
 
-    public void put(String component, Double reading) {
-      values.put(component, reading); 
-    }
+  public static final int JOULE_IND = 0;
+  public static final int SECONDS_IND = 1;
 
-    public double get(String component) {
-      return values.get(component);
-    }
+  public DataItem(String className, Object item, MonitoredField[] fields) {
+    _className = className;
+    _item = item;
+    _fields = fields;
+  }
 
-    public String toString() {
-      String s = "{";
-
-      for (Map.Entry<String,Double> e : values.entrySet()) {
-        s += String.format(" %s:%.2f", e.getKey(), e.getValue());
-      }
-
-      s += " }";
-      return s;
-    }
-
+  public DataItem(DataItem item) {
+    _className = item._className;
+    _item = item._item;
+    _fields = Arrays.copyOf(item._fields, item._fields.length);
   }
 
 }
+

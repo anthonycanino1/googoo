@@ -59,13 +59,14 @@ void cpuid(uint32_t eax_in, uint32_t ecx_in, cpuid_info_t *ci) {
 	 asm (
 #if defined(__LP64__)           /* 64-bit architecture */
 	     "cpuid;"                /* execute the cpuid instruction */
+	     "movl %%ebx, %[ebx];"   /* save ebx output */
 #else                           /* 32-bit architecture */
 	     "pushl %%ebx;"          /* save ebx */
 	     "cpuid;"                /* execute the cpuid instruction */
 	     "movl %%ebx, %[ebx];"   /* save ebx output */
 	     "popl %%ebx;"           /* restore ebx */
 #endif
-             : "=a"(ci->eax), "=b"(ci->ebx), "=c"(ci->ecx), "=d"(ci->edx)
+             : "=a"(ci->eax), [ebx] "=r"(ci->ebx), "=c"(ci->ecx), "=d"(ci->edx)
              : "a"(eax_in), "c"(ecx_in)
         );
 }
@@ -78,22 +79,37 @@ cpuid_info_t getProcessorTopology(uint32_t level) {
 }
 
 int getSocketNum() {
+	int i;
 	uint32_t level1 = 0;
 	uint32_t level2 = 1;
-
 	cpuid_info_t info_l0;
 	cpuid_info_t info_l1;
-
+	//APIC_ID_t *os_map;
+	//os_map = (APIC_ID_t *) malloc(coreNum * sizeof(APIC_ID_t));
 	coreNum = core_num();
+	//for(i = 0; i < coreNum; i++) {
+		info_l0 = getProcessorTopology(level1);
+		info_l1 = getProcessorTopology(level2);
 
-	info_l0 = getProcessorTopology(level1);
-	info_l1 = getProcessorTopology(level2);
-
-	num_core_thread = info_l0.ebx & 0xffff;
-	num_pkg_thread = info_l1.ebx & 0xffff;
+//		os_map[i].os_id = i;
+	//	parse_apic_id(info_l0, info_l1, &os_map[i]);
+		//printf("my_id->pkg_id: %d\n", os_map[i].pkg_id);
 		
+		num_core_thread = info_l0.ebx & 0xffff;
+		num_pkg_thread = info_l1.ebx & 0xffff;
+/*
+		if(os_map[i].pkg_id > max_pkg) {	//loop current pkg_id to ge pkg number
+			max_pkg = os_map[i].pkg_id;
+		}
+		*/
+	//	printf("my_id->pkg_id: %d, max_pkg: %d\n", os_map[i].pkg_id, max_pkg);
+		
+	//}
 	num_pkg_core = num_pkg_thread / num_core_thread;
 	num_pkg = coreNum / num_pkg_thread;
-  
+
 	return num_pkg;
+
+	//printf("num_pkg_thread: %d, num_core_thread: %d, coreNum: %d, num_pkg: %d\n", num_pkg_thread, num_core_thread, coreNum, num_pkg);
+//	return num_pkg;
 }

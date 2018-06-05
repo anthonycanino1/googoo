@@ -30,7 +30,7 @@ public class EnergyCheckUtils {
 		} catch (Exception e) {
 
 		}
-		//System.loadLibrary("CPUScaler");
+	    // System.loadLibrary("CPUScaler");
 		try {
 		NativeUtils.loadLibraryFromJar("/jrapl/libCPUScaler.so");
 		} catch (Exception e) {

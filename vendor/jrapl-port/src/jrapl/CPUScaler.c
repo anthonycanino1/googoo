@@ -13,7 +13,7 @@
 
 rapl_msr_unit rapl_unit;
 rapl_msr_parameter *parameters;
-char *ener_info;
+//char *ener_info;
 /*global variable*/
 int *fd;
 
@@ -38,6 +38,7 @@ void copy_to_string(char *ener_info, char uncore_buffer[60], int uncore_num, cha
 
 
 JNIEXPORT jint JNICALL Java_jrapl_EnergyCheckUtils_ProfileInit(JNIEnv *env, jclass jcls) {
+	jintArray result;
 	int i;
 	char msr_filename[BUFSIZ];
 
@@ -58,7 +59,7 @@ JNIEXPORT jint JNICALL Java_jrapl_EnergyCheckUtils_ProfileInit(JNIEnv *env, jcla
 		fd[i] = open(msr_filename, O_RDWR);
 	}
 
-	uint64_t unit_info = read_msr(fd[0], MSR_RAPL_POWER_UNIT);
+	uint64_t unit_info= read_msr(fd[0], MSR_RAPL_POWER_UNIT);
 	//printf("open core: %d\n", core);
 	get_msr_unit(&rapl_unit, unit_info);
 	get_wraparound_energy(rapl_unit.energy);
@@ -71,34 +72,19 @@ JNIEXPORT jint JNICALL Java_jrapl_EnergyCheckUtils_GetSocketNum(JNIEnv *env, jcl
 	return (jint)getSocketNum();
 }
 
-// If you want to keep it 'optimized' you can use a global buffer and only
-// allocate if you actually can't fit.
-char ener_info_buf[512];
+#define MSR_DRAM_ENERGY_UNIT 0.000015
 
-JNIEXPORT jstring JNICALL Java_jrapl_EnergyCheckUtils_EnergyStatCheck(JNIEnv *env,
-		jclass jcls) {
-	jstring ener_string;
-	double result = 0.0;
+void
+initialize_energy_info(char gpu_buffer[num_pkg][60], char dram_buffer[num_pkg][60], char cpu_buffer[num_pkg][60], char package_buffer[num_pkg][60]) {
+
 	double package[num_pkg];
 	double pp0[num_pkg];
 	double pp1[num_pkg];
 	double dram[num_pkg];
-	//construct a string
-	char *local_ener_info = NULL;
-	long dram_num = 0L; 
-	long cpu_num = 0L; 
-	long gpu_num = 0L; 
-	long package_num = 0L;
-	int info_size;
-	int i;
-	int offset = 0;
-
-
-	for(i = 0; i < num_pkg; i++) {
-		char gpu_buffer[60]; 
-		char dram_buffer[60]; 
-		char cpu_buffer[60]; 
-		char package_buffer[60];
+	double result = 0.0;
+	int info_size = 0;
+	int i = 0;
+	for (; i < num_pkg; i++) {
 
 		result = read_msr(fd[i], MSR_PKG_ENERGY_STATUS);	//First 32 bits so don't need shift bits.
 		package[i] = (double) result * rapl_unit.energy;
@@ -108,13 +94,11 @@ JNIEXPORT jstring JNICALL Java_jrapl_EnergyCheckUtils_EnergyStatCheck(JNIEnv *en
 
 		//printf("package energy: %f\n", package[i]);
 
-		sprintf(package_buffer, "%f", package[i]);
-		sprintf(cpu_buffer, "%f", pp0[i]);
+		sprintf(package_buffer[i], "%f", package[i]);
+		sprintf(cpu_buffer[i], "%f", pp0[i]);
 		
 		//allocate space for string
-		printf("%" PRIu32 "\n", cpu_model);
-		printf("Hex:%x" PRIu32 "\n", cpu_model);
-
+		//printf("%" PRIu32 "\n", cpu_model);
 		switch(cpu_model) {
 			case SANDYBRIDGE_EP:
 			case HASWELL1:
@@ -123,62 +107,23 @@ JNIEXPORT jstring JNICALL Java_jrapl_EnergyCheckUtils_EnergyStatCheck(JNIEnv *en
 			case HASWELL_EP:
 			case SKYLAKE1:
 			case SKYLAKE2:
+			case BROADWELL:
+			case BROADWELL2:
 	
 				result = read_msr(fd[i],MSR_DRAM_ENERGY_STATUS);
-				dram[i] =(double)result*rapl_unit.energy;
-
-				sprintf(dram_buffer, "%f", dram[i]);
-
-				package_num = strlen(package_buffer);
-				dram_num = strlen(dram_buffer);
-				cpu_num = strlen(cpu_buffer);
-
-				if(i == 0) {
-					info_size = (num_pkg * (dram_num + cpu_num + package_num + 4));	
-					local_ener_info = (char *) ener_info_buf;
-					/*
-					printf("info_size:%d\n", info_size);
-
-					int j;
-					for (j = 0; j < 8; j++) {
-						local_ener_info[info_size+j] = 0x0A;
-					}
-					*/
+				if (cpu_model == BROADWELL || cpu_model == BROADWELL2) {
+					dram[i] =(double)result*MSR_DRAM_ENERGY_UNIT;
+				} else {
+					dram[i] =(double)result*rapl_unit.energy;
 				}
 
-				
-				//copy_to_string(local_ener_info, dram_buffer, dram_num, cpu_buffer, cpu_num, package_buffer, package_num, i, &offset);
+				sprintf(dram_buffer[i], "%f", dram[i]);
+
+				info_size += strlen(package_buffer[i]) + strlen(dram_buffer[i]) + strlen(cpu_buffer[i]) + 4;	
+
 				/*Insert socket number*/	
 				
-				memcpy(local_ener_info + offset, &dram_buffer, dram_num);
-				//printf("Wrote %d at offset %d\n", dram_num, offset);
-
-				//split sigh
-				local_ener_info[offset + dram_num] = '#';
-				//printf("Wrote %d at offset %d\n", 1, offset + dram_num);
-
-				memcpy(local_ener_info + offset + dram_num + 1, &cpu_buffer, cpu_num);
-				//printf("Wrote %d at offset %d\n", cpu_num, offset + dram_num + 1);
-
-				local_ener_info[offset + dram_num + cpu_num + 1] = '#';
-				//printf("Wrote %d at offset %d\n", 1, offset + dram_num + cpu_num + 1);
-
-				if(i < num_pkg - 1) {
-					memcpy(local_ener_info + offset + dram_num + cpu_num + 2, &package_buffer, package_num);
-					//printf("Wrote %d at offset %d\n", package_num, offset + dram_num + cpu_num + 2);
-
-					offset += dram_num + cpu_num + package_num + 2;
-					if(num_pkg > 1) {
-						local_ener_info[offset] = '@';
-						//printf("Wrote %d at offset %d\n", 1, offset);
-						offset++;
-					}
-				} else {
-					memcpy(local_ener_info + offset + dram_num + cpu_num + 2, &package_buffer, package_num + 1);
-					//printf("Wrote %d at offset %d\n", package_num + 1, offset + dram_num + cpu_num + 2);
-				}
-
-				break;	
+				break;
 			case SANDYBRIDGE:
 			case IVYBRIDGE:
 
@@ -186,32 +131,94 @@ JNIEXPORT jstring JNICALL Java_jrapl_EnergyCheckUtils_EnergyStatCheck(JNIEnv *en
 				result = read_msr(fd[i],MSR_PP1_ENERGY_STATUS);
 				pp1[i] = (double) result *rapl_unit.energy;
 
-				sprintf(gpu_buffer, "%f", pp1[i]);
+				sprintf(gpu_buffer[i], "%f", pp1[i]);
 
-				package_num = strlen(package_buffer);
-				gpu_num = strlen(gpu_buffer);		
-				cpu_num = strlen(cpu_buffer);
-				if(i == 0) {
-					info_size = num_pkg * (gpu_num + cpu_num + package_num + 4);	
-					local_ener_info = (char *) malloc(info_size);
-				}
-
-				//copy_to_string(local_ener_info, gpu_buffer, gpu_num, cpu_buffer, cpu_num, package_buffer, package_num, i, &offset);
+				info_size += strlen(package_buffer[i]) + strlen(gpu_buffer[i]) + strlen(cpu_buffer[i]) + 4;	
 				
-				memcpy(local_ener_info + offset, &gpu_buffer, gpu_num);
-				//split sign
-				local_ener_info[offset + gpu_num] = '#';
-				memcpy(local_ener_info + offset + gpu_num + 1, &cpu_buffer, cpu_num);
-				local_ener_info[offset + gpu_num + cpu_num + 1] = '#';
+		}
+	}
+}
+
+
+JNIEXPORT jstring JNICALL Java_jrapl_EnergyCheckUtils_EnergyStatCheck(JNIEnv *env,
+		jclass jcls) {
+	jstring ener_string;
+	char gpu_buffer[num_pkg][60]; 
+	char dram_buffer[num_pkg][60]; 
+	char cpu_buffer[num_pkg][60]; 
+	char package_buffer[num_pkg][60];
+	int dram_num = 0L;
+	int cpu_num = 0L;
+	int package_num = 0L;
+	int gpu_num = 0L;
+	//construct a string
+	char ener_info[512];
+	int info_size;
+	int i;
+	int offset = 0;
+
+  bzero(ener_info, 512);
+	initialize_energy_info(gpu_buffer, dram_buffer, cpu_buffer, package_buffer);
+
+	for(i = 0; i < num_pkg; i++) {
+		//allocate space for string
+		//printf("%" PRIu32 "\n", cpu_model);
+		switch(cpu_model) {
+			case SANDYBRIDGE_EP:
+			case HASWELL1:
+			case HASWELL2:
+			case HASWELL3:
+			case HASWELL_EP:
+			case SKYLAKE1:
+			case SKYLAKE2:
+			case BROADWELL:
+			case BROADWELL2:
+
+				//copy_to_string(ener_info, dram_buffer, dram_num, cpu_buffer, cpu_num, package_buffer, package_num, i, &offset);
+				/*Insert socket number*/	
+				dram_num = strlen(dram_buffer[i]);
+				cpu_num = strlen(cpu_buffer[i]);
+				package_num = strlen(package_buffer[i]);
+				
+				memcpy(ener_info + offset, &dram_buffer[i], dram_num);
+				//split sigh
+				ener_info[offset + dram_num] = '#';
+				memcpy(ener_info + offset + dram_num + 1, &cpu_buffer[i], cpu_num);
+				ener_info[offset + dram_num + cpu_num + 1] = '#';
 				if(i < num_pkg - 1) {
-					memcpy(local_ener_info + offset + gpu_num + cpu_num + 2, &package_buffer, package_num);
-					offset += gpu_num + cpu_num + package_num + 2;
+					memcpy(ener_info + offset + dram_num + cpu_num + 2, &package_buffer[i], package_num);
+					offset += dram_num + cpu_num + package_num + 2;
 					if(num_pkg > 1) {
-						local_ener_info[offset] = '@';
+						ener_info[offset] = '@';
 						offset++;
 					}
 				} else {
-					memcpy(local_ener_info + offset + gpu_num + cpu_num + 2, &package_buffer,
+					memcpy(ener_info + offset + dram_num + cpu_num + 2, &package_buffer[i], package_num + 1);
+				}
+				
+				break;	
+			case SANDYBRIDGE:
+			case IVYBRIDGE:
+
+				gpu_num = strlen(gpu_buffer[i]);		
+				cpu_num = strlen(cpu_buffer[i]);
+				package_num = strlen(package_buffer[i]);
+
+				//copy_to_string(ener_info, gpu_buffer, gpu_num, cpu_buffer, cpu_num, package_buffer, package_num, i, &offset);
+				memcpy(ener_info + offset, &gpu_buffer[i], gpu_num);
+				//split sign
+				ener_info[offset + gpu_num] = '#';
+				memcpy(ener_info + offset + gpu_num + 1, &cpu_buffer[i], cpu_num);
+				ener_info[offset + gpu_num + cpu_num + 1] = '#';
+				if(i < num_pkg - 1) {
+					memcpy(ener_info + offset + gpu_num + cpu_num + 2, &package_buffer[i], package_num);
+					offset += gpu_num + cpu_num + package_num + 2;
+					if(num_pkg > 1) {
+						ener_info[offset] = '@';
+						offset++;
+					}
+				} else {
+					memcpy(ener_info + offset + gpu_num + cpu_num + 2, &package_buffer[i],
 							package_num + 1);
 				}
 				
@@ -222,32 +229,16 @@ JNIEXPORT jstring JNICALL Java_jrapl_EnergyCheckUtils_EnergyStatCheck(JNIEnv *en
 
 
 		}
-	} 
-
-	/*
-	printf("-- Byte Dump --\n");
-	int j;
-	printf("0x");
-	for (j = 0; j < 8; j++) {
-		printf("%X", local_ener_info[info_size+j], sizeof local_ener_info[info_size+j]);
 	}
-	printf("\n");
 
-	for (j = 0; j < 8; j++) {
-		if (local_ener_info[info_size+j] != 0xA) {
-			printf("Detected overflow, exiting!\n");
-			exit(1);
-		}
-	} 
-	*/
-
-	ener_string = (*env)->NewStringUTF(env, local_ener_info);	
-
+	ener_string = (*env)->NewStringUTF(env, ener_info);	
+	//free(ener_info);
 	return ener_string;
-}
 
+}
 JNIEXPORT void JNICALL Java_jrapl_EnergyCheckUtils_ProfileDealloc
    (JNIEnv * env, jclass jcls) {
+	int i;
 	free(fd);	
 	free(parameters);
 }

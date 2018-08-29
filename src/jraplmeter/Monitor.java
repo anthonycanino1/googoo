@@ -20,6 +20,7 @@
 package jraplmeter;
 
 import java.util.*;
+import java.lang.Math;
 
 /* A monitor is associated with a single class */
 public class Monitor {
@@ -41,7 +42,9 @@ public class Monitor {
 
   public String[] _fieldNames;
   public Map<String, Double> _runMean = new HashMap<>();
-  //public Map<String, Double> _runDev = new HashMap<>();
+  public Map<String, Boolean> _skipField = new HashMap<>();
+
+  public static final double PEARSONS_THRESHOLD = 0.5;
 
   public Monitor(String className, String[] fieldNames) {
     _className = className;
@@ -51,9 +54,12 @@ public class Monitor {
     _runMean.put(MON_SECONDS, 0.0);
     _fieldNames[DataItem.JOULE_IND] = MON_JOULES;
     _fieldNames[DataItem.SECONDS_IND] = MON_SECONDS;
+    _skipField.put(MON_JOULES, false);
+    _skipField.put(MON_SECONDS, false);
 
     for (int i = 0; i < fieldNames.length; i++) {
       _runMean.put(fieldNames[i], 0.0);
+      _skipField.put(fieldNames[i], false);
       _fieldNames[i+2] = fieldNames[i];
     }
     
@@ -75,8 +81,9 @@ public class Monitor {
       if (!_runMean.containsKey(fields[i]._name)) {
         throw new RuntimeException(String.format("%s un-expected field %s\n", _className, fields[i]._name));
       }
-      int n = _items.size();
-      double mean = _runMean.get(fields[i]._name) + (1.0 / (double)n) * fields[i]._value;
+      int n = _items.size()+1;
+      double mean = _runMean.get(fields[i]._name);
+      mean = mean + (1.0 / (double)n) * (fields[i]._value - mean);
       _runMean.put(fields[i]._name, mean);
     }
     DataItem data = new DataItem(className, item, fields);
@@ -102,9 +109,63 @@ public class Monitor {
     return x._fields[DataItem.JOULE_IND]._value - y._fields[DataItem.JOULE_IND]._value;
   }
 
+  public double fieldDistance(DataItem x, DataItem y) {
+    if (!x._className.equals(y._className) && !x._className.equals(_className)) {
+      throw new RuntimeException(String.format("Mis-matched internal items %s %s %s\n", _className, x._className, y._className));
+    }
+    double dis = 0.0;
+    for (int i = 2; i < x._fields.length; i++) {
+      if (!_skipField.get(x._fields[i]._name)) {
+        double diff = (x._fields[i]._value - y._fields[i]._value);
+        dis += diff * diff;
+      } 
+    }
+    return Math.sqrt(dis);
+  }
+
   public static String parseClass(String str) {
     String[] toks = str.split(" ")[1].split("\\.");
     return toks[toks.length-1];
   } 
+
+  // TODO: This needs to be re-written. Shouldn't be this terrible O(n) lookup
+  private double fieldFromName(DataItem di, String fname) {
+    for (int i = 0; i < di._fields.length; i++) {
+      if (di._fields[i]._name.equals(fname)) {
+        return di._fields[i]._value;
+      }
+    }
+    throw new RuntimeException("looking for bad field " + fname);
+  }
+
+  private double pearsons(String fname) {
+    double cov = 0.0;
+    double xstd = 0.0;
+    double ystd = 0.0;
+    double xu = _runMean.get(MON_JOULES);
+    double yu = _runMean.get(fname);
+    for (int i = 0; i < _items.size(); i++) {
+      DataItem di = _items.get(i);
+      double xi = di._fields[DataItem.JOULE_IND]._value;
+      double yi = fieldFromName(di, fname);
+      cov += (xi - xu) * (yi - yu);
+      xstd += (xi - xu) * (xi - xu);
+      ystd += (yi - yu) * (yi - yu);
+    }
+    xstd = Math.sqrt(xstd);
+    ystd = Math.sqrt(ystd);
+    return cov / (xstd * ystd);
+  }
+
+  public void discardUnwantedFields() {
+    for (int i = 2; i < _fieldNames.length; i++) {
+      double r = pearsons(_fieldNames[i]);
+      LogUtil.writeLogger(String.format("[SKIP] Pearsons for %s is %f\n", _fieldNames[i], r));
+      if (Math.abs(r) < PEARSONS_THRESHOLD) {
+        LogUtil.writeLogger(String.format("[SKIP] Discarding field %s with pearson %f\n", _fieldNames[i],r));
+        _skipField.put(_fieldNames[i],true);
+      }
+    }
+  }
 
 }

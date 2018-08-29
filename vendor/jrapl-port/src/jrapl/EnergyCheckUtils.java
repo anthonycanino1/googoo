@@ -85,15 +85,36 @@ public class EnergyCheckUtils {
   }
 	
 	public static void main(String[] args) {
+    System.out.println(EnergyCheckUtils.wraparoundValue);
+
 		while(true) {
 			double[] before = getEnergyStats();
 			try {
-				Thread.sleep(5);
+				Thread.sleep(2);
 			} catch (Exception e) {
 				System.err.format("Caught: " + e);
 			}
 			double[] after = getEnergyStats();
-			System.out.println("dram: " + (after[0] - before[0])  + " cpu: " + (after[1] - before[1])  + " package: " + (after[2] - before[2])  );
+      double[] energy = new double[after.length];
+
+      for (int i = 0; i < after.length; i++) {
+        energy[i] = after[i] - before[i]; 
+        if (energy[i] < 0) {
+          energy[i] += EnergyCheckUtils.wraparoundValue;
+        }
+      }
+      energy[0] += energy[3];
+      energy[1] += energy[4];
+      energy[2] += energy[5];
+
+			System.out.println("dram (j): " + energy[0]  + " cpu (j): " + energy[1] + " package (j): " + energy[2]  );
+			System.out.println("dram (w): " + energy[0] / 0.002  + " cpu (w): " + energy[1] / 0.002 + " package (w): " + energy[2] / 0.002  );
+      /*
+      try {
+      Thread.sleep(1000);
+      } catch (Exception e) {
+      }
+      */
 		}
 		// Unreachable
 		//ProfileDealloc();

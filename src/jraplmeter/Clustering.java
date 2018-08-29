@@ -83,6 +83,19 @@ public class Clustering {
     int minInd = -1;
     double minDist = Double.MAX_VALUE;
     for (int i = 0; i < _clusters.length; i++) {
+      double distance = _monitor.fieldDistance(item, _clusters[i]._mean);
+      if (Double.compare(minDist, distance) > 0) {
+        minDist = distance;
+        minInd = i;
+      }
+    }
+    return _clusters[minInd];
+  }
+
+  public Cluster attributeEnergyItem(DataItem item) {
+    int minInd = -1;
+    double minDist = Double.MAX_VALUE;
+    for (int i = 0; i < _clusters.length; i++) {
       double distance = _monitor.distance(item, _clusters[i]._mean);
       if (Double.compare(minDist, distance) > 0) {
         minDist = distance;
@@ -91,6 +104,7 @@ public class Clustering {
     }
     return _clusters[minInd];
   }
+
 
   public String toString() {
     String s = "";

@@ -43,5 +43,13 @@ public class DataItem {
     _fields = Arrays.copyOf(item._fields, item._fields.length);
   }
 
+  public String toString() {
+    String s = "";
+    for (int i = 0; i < _fields.length; i++) {
+      s += String.format("%s:%f ", _fields[i]._name, _fields[i]._value);
+    }
+    return s;
+  }
+
 }
 

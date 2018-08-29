@@ -79,11 +79,13 @@ public class UnixMeter {
       }
     } 
 
+    /*
     LogUtil.writeLogger("[SKIP] Raw Diff: ");
     for (int i = 0; i < readings.length; i++) {
       LogUtil.writeLogger(String.format("%.2f ", readings[i]));
     }
     LogUtil.writeLogger("\n");
+    */
 
     return new UnixReading(readings, r1._sockets, r2._time - r1._time);
   }

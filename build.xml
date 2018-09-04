@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project name="stoke" default="compile">
+<project name="googoo" default="compile">
 	<target name="init">
     <property name="package.dir" value="jraplmeter"/>
     <property name="src.dir" value="src" />
     <property name="build.dir" value="build" />
     <property name="build.classes.dir" value="${build.dir}/classes" />
 	  <property name="stoke.libs" value="" />
-    <property name="runtime.jar" location="jraplmeter.jar"/>
+    <property name="runtime.jar" location="googoo.jar"/>
   </target>
 
 	<target name="clean" depends="init" description="Remove build files created this scripts">
@@ -15,8 +15,7 @@
 
   <path id="project.class.path">
     <pathelement path="${java.class.path}/"/>
-		<pathelement path="vendor/jrapl-port/classes"/>
-    <pathelement path="vendor/lib/guava-20.0.jar"/>
+    <pathelement path="vendor/lib/androidutil.jar"/>
   </path>
 
 	<target name="compile" depends="init" description="Compile source">
@@ -33,9 +32,7 @@
 
   <target name="jar" depends="compile">
 		<jar jarfile="${runtime.jar}">
-      <fileset dir="build/classes" includes="jraplmeter/**/*.class" />
-			<fileset dir="vendor/jrapl-port/classes" includes="jrapl/**/*.class" />
-			<fileset dir="vendor/jrapl-port/classes" includes="jrapl/**/*.so" />
+      <fileset dir="build/classes" includes="googoo/**/*.class" />
 			<zipgroupfileset dir="vendor/lib" includes="*.jar" />
 		</jar> 
   </target>
